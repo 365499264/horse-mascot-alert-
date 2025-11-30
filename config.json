@@ -1,0 +1,22 @@
+{
+  "BOT_TOKEN": "723456789:AAFxxxxxxxxxxxxxxxxx",
+  "CHAT_ID": "-1001234567890",
+  "EMAIL_FROM": "yourname@163.com",
+  "EMAIL_TO": "yourprivate@qq.com",
+  "EMAIL_PASSWORD": "abcdefghijklmnop",
+  "SMTP_SERVER": "smtp.163.com",
+  "SMTP_PORT": 465,
+  "WEIBO_COOKIE": "SUB=_2A25...（你的整段cookie）",
+  "RSS_FEEDS": [
+    "https://example.com/feed"
+  ],
+  "KEYWORDS": [
+    "马年吉祥物",
+    "2026吉祥物",
+    "生肖马吉祥物",
+    "央视马年吉祥物",
+    "春晚吉祥物",
+    "丙午年吉祥物",
+    "龙马精神"
+  ]
+}
