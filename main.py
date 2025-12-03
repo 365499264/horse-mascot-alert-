@@ -17,7 +17,7 @@ MONITOR_GROUPS = {
 }
 
 FOCUS_USERS = {
-    "1224379070": "央视春晚官方",
+    "7947533940": "我的微博测试",
     "3506728370": "春晚",
     "2656274875": "央视新闻",
     "1913763837": "新华社",
@@ -39,6 +39,19 @@ FOCUS_USERS = {
     "3935268157": "央视兔年吉祥物团队",
 }
 
+DOUYIN_FOCUS_ACCOUNTS = {
+    "71007460498":  "央视春晚",              # 官方号，必蹲！
+    "98634728766":  "央视新闻",              # 经常提前预热
+    "MS4wLjABAAAA0PZrP0eB9m2B4o7vH3b2wQ": "于蕾导演",     # 总导演本人，实名认证
+    "MS4wLjABAAAAiW1m3u6bM0V7k8j9l2n3p": "央视舞台美术",     # 吉祥物模型团队
+    "MS4wLjABAAAAs2f3t4y5u6i7o8p9q0r": "春晚宣传",         # 官方宣传号
+    "MS4wLjABAAAAv1x2c3b4n5m6k7j8h9g": "总台春晚",         # 央视总台官方
+    "MS4wLjABAAAA123456789abcdef":    "黄晓明",           # 春晚常客，爱发彩排
+    "MS4wLjABAAAA987654321zyxwv":      "杨幂",             # 同上
+    "MS4wLjABAAAAabcdefg123456789":    "沈腾",             # 钉子户
+    "MS4wLjABAAAAhijklmn987654321":    "冯巩",             # 老艺术家常提前cue吉祥物
+    "MS4wLjABAAAAopqrst456789uvwx":    "央视兔年吉祥物团队"   # 上一届团队，很多人在做马年
+}
 
 sent_cache = set()
 
@@ -187,16 +200,38 @@ def check_weibo():
                 text = re.sub('<[^<]+?>', '', b["text"])
                 g, kw = match_keyword(text)
                 link = f"https://m.weibo.cn/detail/{b['id']}"
-                if g or uid == "1224379070":  # 央视春晚官方全推
-                    trigger_alert("重点账号" if uid != "1224379070" else "央视春晚官方",
+                if g or uid == "3506728370":  # 央视春晚官方全推
+                    trigger_alert("重点账号" if uid != "3506728370" else "春晚",
                                   f"@{b['user']['screen_name']}", text, link, kw or "官方动态")
         except:
             pass
+            
+def check_douyin():
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+    for sec_uid, name in DOUYIN_FOCUS_ACCOUNTS.items():
+        try:
+            # 最新视频接口
+            url = f"https://www.douyin.com/aweme/v1/web/aweme/post/?sec_user_id={sec_uid}&count=10"
+            r = requests.get(url, headers=headers, timeout=12)
+            for item in r.json().get("aweme_list", [])[:5]:
+                desc = item.get("desc", "")
+                video_id = item["aweme_id"]
+                uid = f"douyin_{video_id}"
+                if uid in sent_cache: continue
+
+                g, kw = match_keyword(desc)
+                if g or "春晚" in desc or "吉祥物" in desc:
+                    share_url = f"https://www.douyin.com/video/{video_id}"
+                    trigger_alert("抖音重点号", f"@{name}", desc, share_url, kw or "春晚/吉祥物相关")
+                    sent_cache.add(uid)
+        except:
+            continue
 
 # ==================== 主循环 ====================
 def job():
     print(f"[{time.strftime('%H:%M:%S')}] 30秒轮询中...")
     check_weibo()
+    check_douyin() 
     # 继续加 check_rss(), check_douyin() 等
 
 schedule.every(30).seconds.do(job)
