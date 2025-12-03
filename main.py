@@ -229,32 +229,70 @@ def check_weibo_search():
                     send_alert("微博实时", f"@{b['user']['screen_name']}", text, link, hit_kw)
         except: pass
 
+def get_hit_keyword(text):
+    for kw in MONITOR_KEYWORDS:
+        if kw in text:
+            return kw
+    return None
+
 # ==================== 3. 重点微博账号 ====================
+# ==================== 重点微博账号：最近5分钟 + 关键词双重判断 ====================
 def check_focus_weibo():
     headers = {"User-Agent": "Mozilla/5.0", "Cookie": WEIBO_COOKIE}
-    print("重点微博账号查询开始")
-    # 5分钟前的时间戳
-    five_minutes_ago = int(time.time() - 5 * 60)
+    five_minutes_ago = int(time.time() - 5 * 60)   # 5分钟前时间戳
 
     for uid, name in FOCUS_WEIBO_USERS.items():
+        print(f"正在查询重点账号 → {name}（{uid}）最近5分钟动态...")
         api = f"https://m.weibo.cn/api/container/getIndex?containerid=107603{uid}"
-        print("正在查询重点微博账号： " + name)
         try:
-            r = requests.get(api, headers=headers, timeout=10)
-            cards = r.json().get("data", {}).get("cards", [])
+            r = requests.get(api, headers=headers, timeout=12)
+            if r.status_code != 200 or not r.text.strip():
+                print(f"账号异常或无响应 → {name}（{uid}）")
+                continue
+            try:
+                data = r.json()
+            except json.JSONDecodeError:
+                print(f"非JSON响应 → {name}")
+                continue
+
+            cards = data.get("data", {}).get("cards", [])
+            if not cards:
+                continue
+
             for card in cards:
                 if "mblog" not in card: continue
                 b = card["mblog"]
-                created_ts = b.get("created_timestamp") or int(datetime.datetime.strptime(b["created_at"], "%a %b %d %H:%M:%S %z %Y").timestamp()) if "created_at" in b else 0
-                if created_ts < five_minutes_ago:  # 早于5分钟，跳过
-                    continue
-                text = re.sub('<[^>]+>', '', b["text"])
+
+                # —— 时间判断 ——
+                created_ts = b.get("created_timestamp") or 0
+                if created_ts == 0 and "created_at" in b:
+                    try:
+                        created_ts = int(datetime.datetime.strptime(b["created_at"], "%a %b %d %H:%M:%S %z %Y").timestamp())
+                    except:
+                        created_ts = 0
+                if created_ts < five_minutes_ago:
+                    continue  # 不是5分钟内的，直接跳过
+
+                text = re.sub('<[^>]+?>', '', b["text"])
                 link = f"https://m.weibo.cn/detail/{b['id']}"
-                if b["id"] not in sent_cache:
-                    send_alert("重点账号", f"{name}（刚刚发布！）", text, link, None)
-                    sent_cache.add(b["id"])
+
+                # —— 关键词命中判断 ——
+                hit_kw = get_hit_keyword(text)
+                if hit_kw:
+                    # 命中关键词 → 双推送（新闻 + 代币）
+                    if b["id"] not in sent_cache:
+                        print(f"命中关键词！→ {name} 发布: {hit_kw}")
+                        send_alert("重点账号", f"{name}（刚刚发布！）", text, link, hit_kw)
+                        sent_cache.add(b["id"])
+                else:
+                    # 没命中关键词 → 只推一条纯动态（不查代币）
+                    if b["id"] not in sent_cache:
+                        send_alert("重点账号", f"{name}（刚刚发布）", text, link, None)
+                        sent_cache.add(b["id"])
+
         except Exception as e:
-            print(f"重点账号{uid}查询失败:", e)
+            print(f"查询异常 → {name}（{uid}）: {e}")
+
 
 # ==================== 4. 抖音关键词 ====================
 def check_douyin():
