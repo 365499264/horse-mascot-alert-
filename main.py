@@ -187,56 +187,115 @@ def trigger_alert(source, title, content, url, hit_kw):
     time.sleep(3)
     tg(query_tokens(hit_kw))
 
-# ==================== 示例监控（微博重点账号）===================
-def check_weibo():
+# ==================== 双推送核心函数 ====================
+def send_alert(source, title, content, url, hit_kw=None):
+    uid = hashlib.md5(url.encode()).hexdigest()
+    if uid in sent_cache: return
+    sent_cache.add(uid)
+
+    # 第一条：新闻
+    tg(f"【{source}】\n关键词：{hit_kw or '重点账号'}\n\n{title}\n\n{content.strip()[:800]}\n\n原文：{url}")
+
+    # 第二条：代币（仅关键词命中才查）
+    if hit_kw:
+        time.sleep(3)
+        tg(query_tokens(hit_kw))
+
+# ==================== 1. RSS 监控（央视、新华社等）===================
+def check_rss():
+    urls = [
+        "http://news.cctv.com/rss/china.xml",
+        "http://www.cctv.com/rss/culture.xml",
+        "http://www.xinhuanet.com/rss/culture.xml"
+    ]
+    for url in urls:
+        try:
+            feed = feedparser.parse(url)
+            for entry in feed.entries[:8]:
+                text = entry.title + entry.get("summary", "")
+                if is_hit(text):
+                    send_alert("官媒RSS", entry.title, text, entry.link, next(kw for kw in MONITOR_KEYWORDS if kw in text))
+        except: pass
+
+# ==================== 2. 微博关键词实时流 ====================
+def check_weibo_search():
     headers = {"User-Agent": "Mozilla/5.0", "Cookie": WEIBO_COOKIE}
-    for uid, name in FOCUS_USERS.items():
+    for kw in MONITOR_KEYWORDS:
+        api = f"https://m.weibo.cn/api/container/getIndex?containerid=100103type=1&q={requests.utils.quote(kw)}"
+        try:
+            r = requests.get(api, headers=headers, timeout=10)
+            for card in r.json().get("data", {}).get("cards", []):
+                if "mblog" not in card: continue
+                b = card["mblog"]
+                text = re.sub('<[^>]+>', '', b["text"])
+                if is_hit(text):
+                    link = f"https://m.weibo.cn/detail/{b['id']}"
+                    hit_kw = next(k for k in MONITOR_KEYWORDS if k in text)
+                    send_alert("微博实时", f"@{b['user']['screen_name']}", text, link, hit_kw)
+        except: pass
+
+# ==================== 3. 微博重点账号全量 ====================
+def check_focus_weibo():
+    headers = {"User-Agent": "Mozilla/5.0", "Cookie": WEIBO_COOKIE}
+    for uid, name in FOCUS_WEIBO_USERS.items():
         api = f"https://m.weibo.cn/api/container/getIndex?containerid=107603{uid}"
         try:
             r = requests.get(api, headers=headers, timeout=10)
             for card in r.json().get("data", {}).get("cards", []):
                 if "mblog" not in card: continue
                 b = card["mblog"]
-                text = re.sub('<[^<]+?>', '', b["text"])
-                g, kw = match_keyword(text)
+                text = re.sub('<[^>]+>', '', b["text"])
                 link = f"https://m.weibo.cn/detail/{b['id']}"
-                if g or uid == "3506728370":  # 央视春晚官方全推
-                    trigger_alert("重点账号" if uid != "3506728370" else "春晚",
-                                  f"@{b['user']['screen_name']}", text, link, kw or "官方动态")
-        except:
-            pass
-            
+                uid_full = b["id"]
+                if uid_full not in sent_cache:
+                    send_alert("重点账号", f"{name}最新动态", text, link, None)
+                    sent_cache.add(uid_full)
+        except: pass
+
+# ==================== 4. 抖音关键词 ====================
 def check_douyin():
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
-    for sec_uid, name in DOUYIN_FOCUS_ACCOUNTS.items():
+    headers = {"User-Agent": "Mozilla/5.0"}
+    for kw in MONITOR_KEYWORDS:
+        url = f"https://www.douyin.com/aweme/v1/web/search/item/?keyword={requests.utils.quote(kw)}&count=10"
         try:
-            # 最新视频接口
-            url = f"https://www.douyin.com/aweme/v1/web/aweme/post/?sec_user_id={sec_uid}&count=10"
-            r = requests.get(url, headers=headers, timeout=12)
-            for item in r.json().get("aweme_list", [])[:5]:
-                desc = item.get("desc", "")
-                video_id = item["aweme_id"]
-                uid = f"douyin_{video_id}"
-                if uid in sent_cache: continue
+            r = requests.get(url, headers=headers, timeout=10)
+            for item in r.json().get("data", []):
+                aweme = item.get("aweme_info") or item
+                desc = aweme.get("desc", "")
+                if is_hit(desc):
+                    aid = aweme.get("aweme_id")
+                    if aid and aid not in sent_cache:
+                        author = aweme.get("author", {}).get("nickname", "抖音用户")
+                        share = aweme.get("share_url", "无链接")
+                        hit_kw = next(k for k in MONITOR_KEYWORDS if k in desc)
+                        send_alert("抖音", f"@{author}", desc, share, hit_kw)
+                        sent_cache.add(aid)
+        except: pass
 
-                g, kw = match_keyword(desc)
-                if g or "春晚" in desc or "吉祥物" in desc:
-                    share_url = f"https://www.douyin.com/video/{video_id}"
-                    trigger_alert("抖音重点号", f"@{name}", desc, share_url, kw or "春晚/吉祥物相关")
-                    sent_cache.add(uid)
-        except:
-            continue
+# ==================== 5. 百度热搜 ====================
+def check_baidu_hot():
+    try:
+        r = requests.get("https://top.baidu.com/api/board?tab=realtime", timeout=10)
+        for item in r.json().get("data", {}).get("cards", [{}])[0].get("content", [])[:20]:
+            word = item.get("word", "")
+            if is_hit(word) and word not in sent_cache:
+                hit_kw = next(k for k in MONITOR_KEYWORDS if k in word)
+                send_alert("百度热搜", f"冲榜中", word, f"https://www.baidu.com/s?wd={word}", hit_kw)
+                sent_cache.add(word)
+    except: pass
 
-# ==================== 主循环 ====================
+# ==================== 主任务 ====================
 def job():
-    print(f"[{time.strftime('%H:%M:%S')}] 30秒轮询中...")
-    check_weibo()
-    check_douyin() 
-    # 继续加 check_rss(), check_douyin() 等
+    print(f"[{time.strftime('%H:%M:%S')}] 多渠道30秒轮询中...")
+    check_rss()
+    check_weibo_search()
+    check_focus_weibo()
+    check_douyin()
+    check_baidu_hot()
 
 schedule.every(30).seconds.do(job)
-job()
-print("终极修复版已启动！三保险代币查询 + 双推送，无任何语法错误！")
+job()  # 启动即查一次
+print("终极完整版已启动！5大渠道全覆盖 + 双推送 + 三保险代币查询")
 
 while True:
     schedule.run_pending()
