@@ -235,7 +235,7 @@ def check_weibo_search():
                     send_alert("微博实时", f"@{b['user']['screen_name']}", text, link, hit_kw)
         except: pass
 
-# ==================== 3. 微博重点账号全量 ====================
+# ==================== 3. 重点微博账号 ====================
 def check_focus_weibo():
     headers = {"User-Agent": "Mozilla/5.0", "Cookie": WEIBO_COOKIE}
     for uid, name in FOCUS_WEIBO_USERS.items():
@@ -243,15 +243,16 @@ def check_focus_weibo():
         try:
             r = requests.get(api, headers=headers, timeout=10)
             for card in r.json().get("data", {}).get("cards", []):
-                if "mblog" not in card: continue
+                if "mblog" not in card:
+                    continue
                 b = card["mblog"]
                 text = re.sub('<[^>]+>', '', b["text"])
                 link = f"https://m.weibo.cn/detail/{b['id']}"
-                uid_full = b["id"]
-                if uid_full not in sent_cache:
+                if b["id"] not in sent_cache:
                     send_alert("重点账号", f"{name}最新动态", text, link, None)
-                    sent_cache.add(uid_full)
-        except: pass
+                    sent_cache.add(b["id"])
+        except:
+            pass
 
 # ==================== 4. 抖音关键词 ====================
 def check_douyin():
