@@ -209,6 +209,7 @@ def check_rss():
         "http://www.cctv.com/rss/culture.xml",
         "http://www.xinhuanet.com/rss/culture.xml"
     ]
+    print("RSS查询开始")
     for url in urls:
         try:
             feed = feedparser.parse(url)
@@ -221,6 +222,7 @@ def check_rss():
 # ==================== 2. 微博关键词实时流 ====================
 def check_weibo_search():
     headers = {"User-Agent": "Mozilla/5.0", "Cookie": WEIBO_COOKIE}
+    print("微博关键词查询开始")
     for kw in MONITOR_KEYWORDS:
         api = f"https://m.weibo.cn/api/container/getIndex?containerid=100103type=1&q={requests.utils.quote(kw)}"
         try:
@@ -238,6 +240,7 @@ def check_weibo_search():
 # ==================== 3. 重点微博账号 ====================
 def check_focus_weibo():
     headers = {"User-Agent": "Mozilla/5.0", "Cookie": WEIBO_COOKIE}
+    print("重点微博账号查询开始")
     for uid, name in FOCUS_WEIBO_USERS.items():
         api = f"https://m.weibo.cn/api/container/getIndex?containerid=107603{uid}"
         try:
@@ -257,6 +260,7 @@ def check_focus_weibo():
 # ==================== 4. 抖音关键词 ====================
 def check_douyin():
     headers = {"User-Agent": "Mozilla/5.0"}
+    print("抖音关键词查询开始")
     for kw in MONITOR_KEYWORDS:
         url = f"https://www.douyin.com/aweme/v1/web/search/item/?keyword={requests.utils.quote(kw)}&count=10"
         try:
@@ -293,7 +297,6 @@ def job():
     check_weibo_search()
     check_focus_weibo()
     check_douyin()
-    check_baidu_hot()
 
 schedule.every(30).seconds.do(job)
 job()  # 启动即查一次
