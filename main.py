@@ -12,10 +12,10 @@ CHAT_ID      = cfg["CHAT_ID"].strip()
 WEIBO_COOKIE = cfg.get("WEIBO_COOKIE", "").strip()
 BITQUERY_KEY = cfg.get("BITQUERY_API_KEY", "").strip()  # 可留空，留空就跳过Bitquery
 
-MONITOR_GROUPS = {
-    "马年吉祥物": ["马年吉祥物", "2026吉祥物", "生肖马吉祥物", "央视马年吉祥物", "春晚吉祥物", "丙午年吉祥物", "龙马精神", "马宝", "马馺馺", "吉祥马", "吉祥物"]
-}
-
+MONITOR_KEYWORDS = [
+    "马年吉祥物", "2026吉祥物", "生肖马吉祥物", "央视马年吉祥物",
+    "春晚吉祥物", "丙午年吉祥物", "马宝", "吉祥物", "吉祥马"
+]
 FOCUS_USERS = {
     "7947533940": "我的微博测试",
     "3506728370": "春晚",
