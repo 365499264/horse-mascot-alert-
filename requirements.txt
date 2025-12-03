@@ -1,3 +1,5 @@
 requests
 feedparser
 schedule
+beautifulsoup4  # 新增，用于备用网页解析
+
