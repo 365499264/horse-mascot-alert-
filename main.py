@@ -238,6 +238,7 @@ def check_focus_weibo():
 
     for uid, name in FOCUS_WEIBO_USERS.items():
         api = f"https://m.weibo.cn/api/container/getIndex?containerid=107603{uid}"
+        print("f"正在查询{name}")
         try:
             r = requests.get(api, headers=headers, timeout=10)
             cards = r.json().get("data", {}).get("cards", [])
