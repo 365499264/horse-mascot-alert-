@@ -45,9 +45,13 @@ sent_cache = set()
 def tg(text):
     if not BOT_TOKEN or not CHAT_ID: return
     try:
-        requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-                      data={"chat_id": CHAT_ID, "text": text, "disable_web_page_preview": False}, timeout=10)
-    except: pass
+        requests.post(
+            f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+            data={"chat_id": CHAT_ID, "text": text, "disable_web_page_preview": False},
+            timeout=10
+        )
+    except:
+        pass
 
 def match_keyword(text):
     for group, kws in MONITOR_GROUPS.items():
@@ -56,12 +60,12 @@ def match_keyword(text):
                 return group, kw
     return None, None
 
-# ==================== 终极三保险代币查询 ====================
+# ==================== 三保险代币查询（已彻底修复语法）===================
 def query_tokens(keyword):
     tokens = []
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
 
-    # 方案1：DexScreener（最快、最准、无需key）
+    # 方案1：DexScreener（主方案，无需key）
     try:
         r = requests.get(f"https://api.dexscreener.com/latest/dex/search?q={keyword}", headers=headers, timeout=12)
         if r.status_code == 200:
@@ -75,74 +79,102 @@ def query_tokens(keyword):
                 mcap = int(pair.get("fdv") or 0)
                 if mcap < 2000: continue
                 launch = pair.get("pairCreatedAt", "")[:10] if pair.get("pairCreatedAt") else "近期"
-                tokens.append(f"• {name} ({symbol})\n  发射: {launch}\n  CA: {ca}\n  价格 ${price:,.10f} | 市值 ${mcap:,.0f}\n  https://dexscreener.com/bsc/{ca}")
-    except: pass
+                tokens.append(
+                    f"• {name} ({symbol})\n"
+                    f"  发射: {launch}\n"
+                    f"  CA: {ca}\n"
+                    f"  价格 ${price:,.10f} | 市值 ${mcap:,.0f}\n"
+                    f"  https://dexscreener.com/bsc/{ca}"
+                )
+    except Exception as e:
+        print("DexScreener error:", e)
 
-    # 方案2：Bitquery（如果你填了key就用）
+    # 方案2：Bitquery（如果你填了key）—— 彻底修复f-string嵌套
     if BITQUERY_KEY and len(tokens) < 3:
         try:
             two_weeks_ago = (datetime.datetime.now() - datetime.timedelta(weeks=2)).strftime('%Y-%m-%dT%H:%M:%SZ')
-            query = f'''
-            {{
-              EVM(network: bsc) {{
+            # 用 .format() 完全避开 f-string 大括号冲突
+            query = """
+            {
+              EVM(network: bsc) {
                 DEXTrades(
-                  limit: {{count: 8}}
-                  orderBy: {{descendingByField: "Block_Time"}}
-                  where: {{
-                    Transaction: {{Block: {{Time: {{since: "{two_weeks_ago}"}}}}}}
-                    Trade: {{Currency: {{Symbol: {{icontains: "{keyword}"}}}}}
-                  }}
-                ) {{
-                  Trade {{ Currency {{ SmartContract {{ Address }} Symbol Name }} Price Market {{ MarketCap }} }}
-                  Block {{ Time }}
-                }}
-              }}
-            }}
-            '''
-            r = requests.post("https://graphql.bitquery.io",
-                              json={"query": query},
-                              headers={"X-API-KEY": BITQUERY_KEY, **headers},
-                              timeout=15)
-            if r.status_code == 200 and "errors" not in r.json():
-                for t in r.json().get("data", {}).get("EVM", {}).get("DEXTrades", [])[:5]:
-                    ca = t["Trade"]["Currency"]["SmartContract"]["Address"]
-                    name = t["Trade"]["Currency"]["Name"]
-                    symbol = t["Trade"]["Currency"]["Symbol"]
-                    price = t["Trade"]["Price"] or 0
-                    mcap = int(t["Trade"]["Market"]["MarketCap"] or 0)
-                    launch = t["Block"]["Time"][:10]
-                    if mcap > 1000:
-                        tokens.append(f"• {name} ({symbol}) [Bitquery]\n  发射: {launch}\n  CA: {ca}\n  价格 ${price:.10f} | 市值 ${mcap:,.0f}\n  https://four.meme/token/{ca}")
-        except: pass
+                  limit: {count: 8}
+                  orderBy: {descendingByField: "Block_Time"}
+                  where: {
+                    Transaction: {Block: {Time: {since: "%s"}}}
+                    Trade: {Currency: {Symbol: {icontains: "%s"}}}
+                  }
+                ) {
+                  Trade {
+                    Currency { SmartContract { Address } Symbol Name }
+                    Price
+                    Market { MarketCap }
+                  }
+                  Block { Time }
+                }
+              }
+            }
+            """ % (two_weeks_ago, keyword)
 
-    # 方案3：four.meme网页爬取（兜底）
+            r = requests.post(
+                "https://graphql.bitquery.io",
+                json={"query": query},
+                headers={"X-API-KEY": BITQUERY_KEY, "User-Agent": "Mozilla/5.0"},
+                timeout=15
+            )
+            data = r.json().get("data", {}).get("EVM", {}).get("DEXTrades", [])
+            for t in data[:5]:
+                ca = t["Trade"]["Currency"]["SmartContract"]["Address"]
+                name = t["Trade"]["Currency"]["Name"]
+                symbol = t["Trade"]["Currency"]["Symbol"]
+                price = t["Trade"]["Price"] or 0
+                mcap = int(t["Trade"]["Market"]["MarketCap"] or 0) if t["Trade"]["Market"]["MarketCap"] else 0
+                launch = t["Block"]["Time"][:10]
+                if mcap > 1000:
+                    tokens.append(
+                        f"• {name} ({symbol}) [Bitquery]\n"
+                        f"  发射: {launch}\n"
+                        f"  CA: {ca}\n"
+                        f"  价格 ${price:.10f} | 市值 ${mcap:,.0f}\n"
+                        f"  https://four.meme/token/{ca}"
+                    )
+        except Exception as e:
+            print("Bitquery error:", e)
+
+    # 方案3：four.meme 网页兜底
     if len(tokens) < 2:
         try:
             r = requests.get(f"https://four.meme/search?q={keyword}", headers=headers, timeout=10)
             soup = BeautifulSoup(r.text, "html.parser")
             for card in soup.select(".token-item, .token-card, [data-token]")[:5]:
-                name = card.select_one("h3, .name, .token-name")
-                ca_tag = card.select_one("a[href*='/token/']")
-                if name and ca_tag:
-                    ca = ca_tag["href"].split("/")[-1]
-                    tokens.append(f"• {name.get_text(strip=True)}\n  CA: {ca}\n  https://four.meme/token/{ca}")
-        except: pass
+                name_tag = card.select_one("h3, .name, .token-name")
+                a_tag = card.select_one("a[href*='/token/']")
+                if name_tag and a_tag:
+                    name = name_tag.get_text(strip=True)
+                    ca = a_tag["href"].split("/")[-1]
+                    tokens.append(f"• {name}\n  CA: {ca}\n  https://four.meme/token/{ca}")
+        except Exception as e:
+            print("four.meme error:", e)
 
     if not tokens:
-        return f"最近2周内未发现与 “{keyword}” 相关的代币（三源全挂或确实没人发）"
+        return f"最近2周内未发现与 “{keyword}” 相关的代币"
     return "【抢跑代币】“" + keyword + "”相关新币（最近2周）:\n\n" + "\n\n".join(tokens[:7])
 
-# ==================== 统一触发：先新闻 → 3秒后代币 ====================
+# ==================== 统一触发 ====================
 def trigger_alert(source, title, content, url, hit_kw):
     uid = hashlib.md5(url.encode()).hexdigest()
-    if uid in sent_cache: return
+    if uid in sent_cache:
+        return
     sent_cache.add(uid)
 
-    tg(f"【{source}爆料】\n命中关键词：{hit_kw}\n\n{title}\n\n{content.strip()[:800]}\n\n原文：{url}")
-    time.sleep(1)
+    # 第一条：纯新闻
+    tg(f"【{source}】\n命中关键词：{hit_kw}\n\n{title}\n\n{content.strip()[:800]}\n\n原文：{url}")
+
+    # 第二条：3秒后代币
+    time.sleep(3)
     tg(query_tokens(hit_kw))
 
-# ==================== 监控函数（示例）===================
+# ==================== 示例监控（微博重点账号）===================
 def check_weibo():
     headers = {"User-Agent": "Mozilla/5.0", "Cookie": WEIBO_COOKIE}
     for uid, name in FOCUS_USERS.items():
@@ -154,20 +186,22 @@ def check_weibo():
                 b = card["mblog"]
                 text = re.sub('<[^<]+?>', '', b["text"])
                 g, kw = match_keyword(text)
+                link = f"https://m.weibo.cn/detail/{b['id']}"
                 if g or uid == "1224379070":  # 央视春晚官方全推
-                    link = f"https://m.weibo.cn/detail/{b['id']}"
-                    trigger_alert("重点账号" if uid != "1224379070" else "央视春晚官方", f"@{b['user']['screen_name']}", text, link, kw or "官方动态")
-        except: pass
+                    trigger_alert("重点账号" if uid != "1224379070" else "央视春晚官方",
+                                  f"@{b['user']['screen_name']}", text, link, kw or "官方动态")
+        except:
+            pass
 
 # ==================== 主循环 ====================
 def job():
-    print(f"[{time.strftime('%H:%M:%S')}] 三保险30秒轮询中...", flush=True)
+    print(f"[{time.strftime('%H:%M:%S')}] 30秒轮询中...")
     check_weibo()
     # 继续加 check_rss(), check_douyin() 等
 
 schedule.every(30).seconds.do(job)
 job()
-print("三保险终极版已启动：DexScreener + Bitquery（可选） + four.meme网页，永不错过任何CA！")
+print("终极修复版已启动！三保险代币查询 + 双推送，无任何语法错误！")
 
 while True:
     schedule.run_pending()
