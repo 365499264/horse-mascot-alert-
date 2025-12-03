@@ -232,6 +232,7 @@ def check_weibo_search():
 # ==================== 3. 重点微博账号 ====================
 def check_focus_weibo():
     headers = {"User-Agent": "Mozilla/5.0", "Cookie": WEIBO_COOKIE}
+    print("重点微博账号查询开始")
     # 5分钟前的时间戳
     five_minutes_ago = int(time.time() - 5 * 60)
 
