@@ -247,6 +247,7 @@ def check_focus_weibo():
         api = f"https://m.weibo.cn/api/container/getIndex?containerid=107603{uid}"
         try:
             r = requests.get(api, headers=headers, timeout=12)
+            print(name + r.json())
             if r.status_code != 200 or not r.text.strip():
                 print(f"账号异常或无响应 → {name}（{uid}）")
                 continue
