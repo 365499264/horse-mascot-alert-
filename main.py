@@ -240,22 +240,27 @@ def check_weibo_search():
 # ==================== 3. 重点微博账号 ====================
 def check_focus_weibo():
     headers = {"User-Agent": "Mozilla/5.0", "Cookie": WEIBO_COOKIE}
-    print("重点微博账号查询开始")
+    # 5分钟前的时间戳
+    five_minutes_ago = int(time.time() - 5 * 60)
+
     for uid, name in FOCUS_WEIBO_USERS.items():
         api = f"https://m.weibo.cn/api/container/getIndex?containerid=107603{uid}"
         try:
             r = requests.get(api, headers=headers, timeout=10)
-            for card in r.json().get("data", {}).get("cards", []):
-                if "mblog" not in card:
-                    continue
+            cards = r.json().get("data", {}).get("cards", [])
+            for card in cards:
+                if "mblog" not in card: continue
                 b = card["mblog"]
+                created_ts = b.get("created_timestamp") or int(datetime.datetime.strptime(b["created_at"], "%a %b %d %H:%M:%S %z %Y").timestamp()) if "created_at" in b else 0
+                if created_ts < five_minutes_ago:  # 早于5分钟，跳过
+                    continue
                 text = re.sub('<[^>]+>', '', b["text"])
                 link = f"https://m.weibo.cn/detail/{b['id']}"
                 if b["id"] not in sent_cache:
-                    send_alert("重点账号", f"{name}最新动态", text, link, None)
+                    send_alert("重点账号", f"{name}（刚刚发布！）", text, link, None)
                     sent_cache.add(b["id"])
-        except:
-            pass
+        except Exception as e:
+            print(f"重点账号{uid}查询失败:", e)
 
 # ==================== 4. 抖音关键词 ====================
 def check_douyin():
