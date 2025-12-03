@@ -231,7 +231,7 @@ def check_weibo_search():
 
 def get_hit_keyword(text):
     for kw in MONITOR_KEYWORDS:
-        print("微博文本：" + text + "；关键词" + kw)
+        print("微博文本:" + text + "；关键词:" + kw)
         if kw in text:
             return kw
     return None
