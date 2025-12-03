@@ -231,6 +231,7 @@ def check_weibo_search():
 
 def get_hit_keyword(text):
     for kw in MONITOR_KEYWORDS:
+        print("微博文本：" + text + "；关键词" + kw)
         if kw in text:
             return kw
     return None
@@ -271,6 +272,7 @@ def check_focus_weibo():
                     except:
                         created_ts = 0
                 if created_ts < five_minutes_ago:
+                    print(f"5分钟内没有新微博")
                     continue  # 不是5分钟内的，直接跳过
 
                 text = re.sub('<[^>]+?>', '', b["text"])
