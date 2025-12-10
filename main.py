@@ -4,6 +4,7 @@
 
 import requests
 import time
+import re
 from datetime import datetime
 
 # ==================== 微博接口配置 ====================
