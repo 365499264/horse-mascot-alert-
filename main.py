@@ -42,6 +42,11 @@ def send_telegram(message: str):
 def now():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+def escape_md(text: str) -> str:
+    """Telegram MarkdownV2 必须转义的字符"""
+    escape_chars = r'_*[]()~`>#+-=|{}.!'
+    return ''.join('\\' + c if c in escape_chars else c for c in text)
+
 # ==================== 主逻辑 ====================
 last_bid = None   # 记录已推送过的最新 bid
 
@@ -82,30 +87,31 @@ def check_weibo():
             return
 
         # 是新微博 → 打印醒目提示 + 推送到 Telegram
+        clean_text = html_to_plain_text(text)   # 去掉HTML标签，保留文字
         print("\n" + "="*70)
         print(" " * 20 + "检测到新微博！正在推送 Telegram...")
         print("="*70)
         print(f"博主：{name}")
         print(f"时间：{created_at}")
-        print(f"正文：\n{text}\n")
+        print(f"正文：\n{clean_text}\n")
         print(f"手机链接 → {m_link}")
         print(f"电脑链接 → {pc_link}")
         print("="*70 + "\n")
 
-        # 推送到 Telegram（纯文本，永不 400）
-        tg_msg = f"""新微博来了！
+        # MarkdownV2 格式消息（完美支持加粗、链接、转义）
+        tg_message = f"""*新微博提醒！*
 
-博主：{name}
-时间：{created_at}
+*博主：* {escape_md(name)}
+*时间：* {escape_md(created_at)}
 
-正文：
-{text}
+*正文：*
+{escape_md(clean_text)}
 
-查看链接：
-手机端：{m_link}
-电脑端：{pc_link}"""
+*查看链接：*
+• [手机端查看]({m_link})
+• [电脑端查看]({pc_link})"""
 
-        send_telegram(tg_msg)
+        send_telegram(tg_message)
         last_bid = bid
 
     except Exception as e:
