@@ -50,6 +50,16 @@ def escape_md(text: str) -> str:
 # ==================== 主逻辑 ====================
 last_bid = None   # 记录已推送过的最新 bid
 
+def html_to_plain_text(html: str) -> str:
+    """把微博 HTML 转成适合 Markdown 的纯文本（保留话题、@、链接文字）"""
+    # 先把 <br> 换成换行
+    text = re.sub(r'<br\s*/?>', '\n', html)
+    # 去掉所有标签，但保留标签之间的文字（就是我们想要的）
+    text = re.sub(r'<[^>]+>', '', text)
+    # 清理多余空行
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    return text.strip()
+    
 def check_weibo():
     global last_bid
     print(f"[{now()}] 正在请求微博接口...")
