@@ -138,5 +138,5 @@ if __name__ == "__main__":
     check_weibo()  # 启动后立即检查一次
     
     while True:
-        time.sleep(30)
+        time.sleep(10)
         check_weibo()
