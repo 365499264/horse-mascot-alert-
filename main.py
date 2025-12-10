@@ -92,26 +92,25 @@ def check_weibo():
         print(f"电脑链接 → {pc_link}")
         print("="*70 + "\n")
 
-        # 构造 Telegram 消息
-        tg_message = f"""<b>新微博提醒</b>
+        # 推送到 Telegram（纯文本，永不 400）
+        tg_msg = f"""新微博来了！
 
-<b>博主：</b> {name}
-<b>时间：</b> {created_at}
+博主：{name}
+时间：{created_at}
 
-<b>正文：</b>
+正文：
 {text}
 
-<b>查看链接：</b>
-• <a href="{m_link}">手机端查看</a>
-• <a href="{pc_link}">电脑端查看</a>"""
+查看链接：
+手机端：{m_link}
+电脑端：{pc_link}"""
 
-        send_telegram(tg_message)
-
-        # 更新记录，防止重复推送
+        send_telegram(tg_msg)
         last_bid = bid
 
     except Exception as e:
         print(f"[{now()}] 异常：{e}\n")
+
 
 
 # ==================== 启动 ====================
